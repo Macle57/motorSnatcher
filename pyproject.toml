@@ -1,0 +1,21 @@
+[project]
+name = "robu-motors-scraper"
+version = "0.1.0"
+description = "Scrape motor specifications from robu.in"
+authors = [
+    {name = "User"}
+]
+readme = "README.md"
+requires-python = "^3.10"
+dependencies = [
+    "beautifulsoup4 (>=4.14.3,<5.0.0)",
+    "requests (>=2.32.5,<3.0.0)",
+    "lxml (>=6.0.2,<7.0.0)",
+    "selenium (>=4.40.0,<5.0.0)",
+    "cloudscraper (>=1.2.71,<2.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

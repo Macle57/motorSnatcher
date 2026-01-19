@@ -1,0 +1,14 @@
+This is a helpern file to get to general info div, containing most info, everything other then weight can be fetched from here
+
+/html/body/div[2]/div/div[2]/div/div/div[1]/main/div[2]/div[1]/div[2]/div[5]
+which shall contain ordered list storing mainly:
+Voltage : 12V
+Rated Power : 120W
+No load current : < 0.55A
+Rate torque : 4.58 KgCm(0.45N.m)
+Rate current : < 7.0A
+Efficiency : >70%
+Shaft diameter: 8 mm (milled groove one-sided 1 mm)
+100% Ball Bearing construction!
+Speed: 3350RPM.
+Weight: 1.06Kg.

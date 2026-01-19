@@ -1,0 +1,51 @@
+remember to add /#tab-specification in the end of product url to show this div
+This is a helper file to get to specification tab and showing example text found isnide it
+div full xpath:
+/html/body/div[2]/div/div[2]/div/div/div[1]/main/div[2]/div[2]/div[2]/table
+selector: #tab-specification > table
+will have specifications
+Eg:
+Item Type:	
+Brushed Motor
+
+Motor Type:	
+Brushed motor
+
+Model No.:	
+MY6812
+
+Operating Power (W):	
+120
+
+Operating Voltage (VDC):	
+12
+
+Rated Current (A):	
+7
+
+Rated Torque (kg-cm):	
+4.58
+
+Gearbox	
+No
+
+Efficiency	
+>72~75%
+
+Rated Speed (RPM):	
+3350
+
+Weight (kg):	
+1.06
+
+Dimensions (LxD)	
+120mm x 68mm
+
+Cable Length (cm):	
+25
+
+eg:
+<tr class="woocommerce-product-attributes-item woocommerce-product-attributes-item--weight">
+						<th class="woocommerce-product-attributes-item__label" style="text-align: center;background-color:#FFFFFF !important">Shipping Weight</th>
+			<td class="woocommerce-product-attributes-item__value" style="text-align: center;background-color:#FFFFFF !important">1.2 kg</td>
+		</tr>
