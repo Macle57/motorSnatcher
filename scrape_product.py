@@ -33,6 +33,7 @@ HEADERS = {
 CSV_COLUMNS = [
     "Product Name",
     "URL",
+    "Stock Status",
     "Price (INR)",
     "Voltage (V)",
     "Power (W)",
@@ -120,6 +121,38 @@ def extract_product_name(soup: BeautifulSoup) -> str:
     if title:
         return title.get_text(strip=True).split(" - ")[0].strip()
     return ""
+
+
+def extract_stock_status(soup: BeautifulSoup) -> str:
+    """Extract stock availability status."""
+    # Look for availability div
+    availability = soup.find("div", class_="availability")
+    if availability:
+        stock_span = availability.find("span", class_="electro-stock-availability")
+        if stock_span:
+            stock_p = stock_span.find("p", class_="stock")
+            if stock_p:
+                text = stock_p.get_text(strip=True)
+                # Normalize status
+                text_lower = text.lower()
+                if "out of stock" in text_lower:
+                    return "Out of Stock"
+                elif "in stock" in text_lower:
+                    return "In Stock"
+                elif "low" in text_lower or "order now" in text_lower:
+                    return "Low Stock"
+                return text
+    
+    # Fallback: search page text for stock status
+    page_text = soup.get_text().lower()
+    if "out of stock" in page_text:
+        return "Out of Stock"
+    elif "in stock" in page_text:
+        return "In Stock"
+    elif "low stock" in page_text or "low in stock" in page_text:
+        return "Low Stock"
+    
+    return "Unknown"
 
 
 def extract_general_info(soup: BeautifulSoup) -> dict:
@@ -271,6 +304,7 @@ def scrape_product(url: str, verbose: bool = False) -> dict:
     soup = BeautifulSoup(html, "lxml")
 
     product_name = extract_product_name(soup)
+    stock_status = extract_stock_status(soup)
     price = extract_price(soup)
     general_info = extract_general_info(soup)
     spec_table = extract_specification_table(soup)
@@ -310,6 +344,7 @@ def scrape_product(url: str, verbose: bool = False) -> dict:
     result = {
         "Product Name": product_name,
         "URL": clean_url,
+        "Stock Status": stock_status,
         "Price (INR)": price,
         "Voltage (V)": get_spec("voltage", "operating voltage", "vdc"),
         "Power (W)": get_spec("power", "operating power", "rated power"),

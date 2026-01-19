@@ -22,6 +22,16 @@ from scrape_product import (
 )
 
 
+# URLs to exclude (services, not motors)
+EXCLUDED_URLS = {
+    "https://robu.in/product/metal-laser-cutting",
+    "https://robu.in/product/3d-printing-service",
+    "https://robu.in/product/online-laser-cutting-service",
+    "https://robu.in/product/sla-3d-printing",
+    "https://robu.in/product/online-pcb-manufacturing-service",
+}
+
+
 def extract_product_urls(html: str, base_url: str) -> list[str]:
     """Extract all product URLs from a listing page."""
     soup = BeautifulSoup(html, "lxml")
@@ -34,7 +44,9 @@ def extract_product_urls(html: str, base_url: str) -> list[str]:
         for link in links:
             href = link["href"]
             if "robu.in/product/" in href and "/product-category/" not in href:
-                product_urls.add(href.rstrip("/"))
+                clean_url = href.rstrip("/")
+                if clean_url not in EXCLUDED_URLS:
+                    product_urls.add(clean_url)
 
     # Strategy 2: Find all links matching product pattern (fallback)
     all_links = soup.find_all("a", href=True)
@@ -42,7 +54,9 @@ def extract_product_urls(html: str, base_url: str) -> list[str]:
         href = link["href"]
         # Match product URLs but exclude category pages
         if re.match(r"https?://robu\.in/product/[^/]+/?$", href):
-            product_urls.add(href.rstrip("/"))
+            clean_url = href.rstrip("/")
+            if clean_url not in EXCLUDED_URLS:
+                product_urls.add(clean_url)
 
     return sorted(product_urls)
 
@@ -133,7 +147,8 @@ def main():
     )
     parser.add_argument(
         "url",
-        help="URL of the product listing page (e.g., https://robu.in/product-category/ebike-parts/)",
+        nargs="+",
+        help="One or more URLs of product listing pages (e.g., https://robu.in/product-category/ebike-parts/)",
     )
     parser.add_argument(
         "csv_file",
@@ -159,22 +174,30 @@ def main():
 
     args = parser.parse_args()
 
-    print(f"Fetching listing page: {args.url}")
-    html = fetch_page(args.url, verbose=True)
-    if not html:
-        print("Failed to fetch listing page!")
-        sys.exit(1)
+    # Handle multiple URLs
+    all_product_urls = set()
+    
+    for listing_url in args.url:
+        print(f"Fetching listing page: {listing_url}")
+        html = fetch_page(listing_url, verbose=True)
+        if not html:
+            print(f"Failed to fetch listing page: {listing_url}")
+            continue
 
-    product_urls = extract_product_urls(html, args.url)
-    print(f"Found {len(product_urls)} product URLs")
+        product_urls = extract_product_urls(html, listing_url)
+        print(f"Found {len(product_urls)} product URLs from {listing_url}")
+        all_product_urls.update(product_urls)
+    
+    all_product_urls = sorted(all_product_urls)
+    print(f"\nTotal unique product URLs: {len(all_product_urls)}")
 
-    if not product_urls:
+    if not all_product_urls:
         print("No products found!")
         sys.exit(1)
 
     existing_urls = get_existing_urls(args.csv_file)
-    new_urls = [url for url in product_urls if url not in existing_urls]
-    print(f"Skipping {len(product_urls) - len(new_urls)} already scraped products")
+    new_urls = [url for url in all_product_urls if url not in existing_urls]
+    print(f"Skipping {len(all_product_urls) - len(new_urls)} already scraped products")
     print(f"Scraping {len(new_urls)} new products...")
 
     if args.sequential:
