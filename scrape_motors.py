@@ -147,12 +147,18 @@ def main():
     )
     parser.add_argument(
         "url",
-        nargs="+",
+        nargs="*",
         help="One or more URLs of product listing pages (e.g., https://robu.in/product-category/ebike-parts/)",
     )
     parser.add_argument(
         "csv_file",
         help="Output CSV filename (will append if exists)",
+    )
+    parser.add_argument(
+        "--url-file",
+        "-f",
+        type=str,
+        help="File containing URLs (one per line)",
     )
     parser.add_argument(
         "--delay",
@@ -174,10 +180,30 @@ def main():
 
     args = parser.parse_args()
 
+    # Collect URLs from command line or file
+    urls_to_scrape = []
+    
+    if args.url_file:
+        # Read URLs from file
+        try:
+            with open(args.url_file, "r", encoding="utf-8") as f:
+                urls_to_scrape = [line.strip() for line in f if line.strip()]
+            print(f"Loaded {len(urls_to_scrape)} URLs from {args.url_file}")
+        except FileNotFoundError:
+            print(f"Error: URL file '{args.url_file}' not found!")
+            sys.exit(1)
+    elif args.url:
+        # Use URLs from command line
+        urls_to_scrape = args.url
+    else:
+        print("Error: Must provide either URLs or --url-file")
+        parser.print_help()
+        sys.exit(1)
+
     # Handle multiple URLs
     all_product_urls = set()
     
-    for listing_url in args.url:
+    for listing_url in urls_to_scrape:
         print(f"Fetching listing page: {listing_url}")
         html = fetch_page(listing_url, verbose=True)
         if not html:

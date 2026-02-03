@@ -48,8 +48,7 @@ poetry run python scrape_motors.py \
 poetry run python scrape_motors.py "https://robu.in/product-category/ebike-parts/e-bike-parts/e-bike-motors/" motors.csv --workers 8 --delay 0.3
 
 # Scrape all URLs from a file
-$urls = Get-Content urls.txt | Where-Object { $_.Trim() -ne "" }
-poetry run python scrape_motors.py $urls motors_all.csv --workers 8
+poetry run python scrape_motors.py --url-file urls.txt motors_all.csv --workers 8
 
 # Sequential mode (slower but more reliable)
 poetry run python scrape_motors.py "https://robu.in/product-category/ebike-parts/e-bike-parts/e-bike-motors/" motors.csv --sequential --delay 2
@@ -73,6 +72,7 @@ It prints what its able to get from that product, anything which is shown here w
 ### Options
 
 **scrape_motors.py**:
+- `--url-file FILE` or `-f FILE`: Read URLs from a file (one URL per line)
 - `--workers N`: Number of parallel workers (default: 5)
 - `--delay N`: Delay between requests in seconds (default: 0.5)
 - `--sequential`: Use sequential scraping instead of parallel

@@ -159,17 +159,30 @@ def extract_general_info(soup: BeautifulSoup) -> dict:
     """Extract info from the general info div (ordered list)."""
     specs = {}
 
-    description_areas = soup.find_all(["div", "section"], class_=lambda c: c and any(
-        x in str(c).lower() for x in ["description", "summary", "content", "product"]
-    ))
+    # Find the main product content area, but exclude related products sections
+    # Look for woocommerce-product-details__short-description or similar
+    description_div = soup.find("div", class_="woocommerce-product-details__short-description")
+    if not description_div:
+        description_div = soup.find("div", id="tab-description")
+    if not description_div:
+        # Try the main summary area
+        summary = soup.find("div", class_="summary")
+        if summary:
+            description_div = summary
 
     all_lists = []
-    for area in description_areas:
-        all_lists.extend(area.find_all(["ol", "ul"]))
+    if description_div:
+        all_lists.extend(description_div.find_all(["ol", "ul"]))
 
-    main = soup.find("main")
-    if main:
-        all_lists.extend(main.find_all(["ol", "ul"]))
+    # Also check for the product single entry summary
+    entry_summary = soup.find("div", class_="entry-summary")
+    if entry_summary:
+        # Be careful to only get lists in the actual product description, not related products
+        for ol in entry_summary.find_all(["ol", "ul"], recursive=False):
+            all_lists.append(ol)
+        # Also check nested divs but not too deep
+        for child_div in entry_summary.find_all("div", recursive=False):
+            all_lists.extend(child_div.find_all(["ol", "ul"], recursive=False))
 
     for ol in all_lists:
         items = ol.find_all("li")
@@ -180,7 +193,9 @@ def extract_general_info(soup: BeautifulSoup) -> dict:
                 if len(parts) == 2:
                     key = parts[0].strip().lower()
                     value = parts[1].strip()
-                    specs[key] = value
+                    # Skip if key is too long (likely garbage)
+                    if len(key) < 50:
+                        specs[key] = value
 
     return specs
 
@@ -210,6 +225,8 @@ def extract_specification_table(soup: BeautifulSoup) -> dict:
             if len(cells) >= 2:
                 key = cells[0].get_text(strip=True).lower()
                 value = cells[1].get_text(strip=True)
+                # Clean up key - remove trailing colons and extra spaces
+                key = key.rstrip(":").strip()
                 if key and value:
                     specs[key] = value
 
@@ -243,20 +260,8 @@ def extract_via_regex(html: str) -> dict:
         "shipping_dimensions": [
             r"shipping\s*dimensions?\s*[:\s]*([\d.]+\s*[×x]\s*[\d.]+\s*[×x]\s*[\d.]+)\s*cm",
         ],
-        "voltage": [
-            r"voltage\s*[:\(]?\s*(\d+)\s*v",
-            r"(\d+)\s*v(?:dc)?\s*(?:voltage|motor)",
-            r"operating\s*voltage\s*[:\(]?\s*(\d+)",
-        ],
-        "power": [
-            r"(?:rated\s*)?power\s*[:\(]?\s*(\d+)\s*w",
-            r"(\d+)\s*w\s*(?:power|motor)",
-            r"operating\s*power\s*[:\(]?\s*(\d+)",
-        ],
-        "rpm": [
-            r"(?:rated\s*)?speed\s*[:\(]?\s*(\d+)\s*rpm",
-            r"(\d+)\s*rpm",
-        ],
+        # Note: Voltage/Power/RPM regex removed - too many false positives from related products
+        # Rely on spec_table extraction instead
         "rated_current": [
             r"rated?\s*current\s*[:\(]?\s*[<>]?\s*(\d+\.?\d*)\s*a",
         ],
@@ -341,20 +346,68 @@ def scrape_product(url: str, verbose: bool = False) -> dict:
                         return clean_value(value)
         return ""
 
+    # Helper to get spec with unit-aware extraction
+    def get_no_load_current():
+        """Get no-load current, handling mA vs A."""
+        # First try to find mA value
+        for spec_key, value in all_specs.items():
+            if "no" in spec_key.lower() and "load" in spec_key.lower() and "current" in spec_key.lower():
+                if "ma" in spec_key.lower() or "ma" in value.lower():
+                    # Convert mA to A
+                    num = clean_number(value)
+                    if num:
+                        try:
+                            return str(float(num) / 1000)
+                        except ValueError:
+                            pass
+                else:
+                    return clean_number(value)
+        return ""
+
+    def get_efficiency():
+        """Get efficiency, handling ratio vs percentage."""
+        val = get_spec("efficiency")
+        if val:
+            try:
+                num = float(val)
+                if num < 1:  # It's a ratio, convert to percentage
+                    return str(int(num * 100))
+                return val
+            except ValueError:
+                return val
+        return ""
+
+    def get_weight():
+        """Get weight, handling grams vs kg."""
+        # First try weight in kg
+        for spec_key, value in all_specs.items():
+            if "weight" in spec_key.lower() and "shipping" not in spec_key.lower():
+                if "(kg)" in spec_key.lower() or "kg" in value.lower():
+                    return clean_number(value)
+                if "(g)" in spec_key.lower():
+                    # Convert grams to kg
+                    num = clean_number(value)
+                    if num:
+                        try:
+                            return str(float(num) / 1000)
+                        except ValueError:
+                            pass
+        return get_spec("weight (kg)", "weight:", "weight_kg", exact=True)
+
     result = {
         "Product Name": product_name,
         "URL": clean_url,
         "Stock Status": stock_status,
         "Price (INR)": price,
-        "Voltage (V)": get_spec("voltage", "operating voltage", "vdc"),
-        "Power (W)": get_spec("power", "operating power", "rated power"),
-        "Rated Current (A)": get_spec("rated current", "rate current"),
-        "No Load Current (A)": get_spec("no load current", "no-load current"),
+        "Voltage (V)": get_spec("rated voltage", "operating voltage", "voltage", "vdc"),
+        "Power (W)": get_spec("operating power", "rated power", "power"),
+        "Rated Current (A)": get_spec("rated current (a)", "rated current", "rate current"),
+        "No Load Current (A)": get_no_load_current(),
         "Rated Torque (kg-cm)": get_spec("rated torque", "rate torque"),
         "Stall Torque (kg-cm)": get_spec("stall torque"),
-        "RPM": get_spec("rpm", "speed", "rated speed"),
-        "Efficiency (%)": get_spec("efficiency"),
-        "Weight (kg)": get_spec("weight (kg)", "weight:", "weight_kg", exact=True),
+        "RPM": get_spec("rated speed (rpm)", "rated speed", "speed (rpm)", "rpm"),
+        "Efficiency (%)": get_efficiency(),
+        "Weight (kg)": get_weight(),
         "Shipping Weight (kg)": get_spec("shipping weight", "shipping_weight", clean=False),
         "Shipping Dimensions (cm)": get_spec("shipping dimensions", "shipping_dimensions", clean=False),
         "Shaft Diameter (mm)": get_spec("shaft diameter", "shaft"),
