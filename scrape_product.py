@@ -381,11 +381,14 @@ def scrape_product(url: str, verbose: bool = False) -> dict:
         """Get weight, handling grams vs kg."""
         # First try weight in kg
         for spec_key, value in all_specs.items():
-            if "weight" in spec_key.lower() and "shipping" not in spec_key.lower():
-                if "(kg)" in spec_key.lower() or "kg" in value.lower():
+            key_lower = spec_key.lower()
+            # Skip shipping weight and load weight (max load capacity, not motor weight)
+            if "weight" in key_lower and "shipping" not in key_lower and "load" not in key_lower:
+                # Check if value is in kg
+                if "(kg)" in key_lower or "kg" in value.lower():
                     return clean_number(value)
-                if "(g)" in spec_key.lower():
-                    # Convert grams to kg
+                # Check if value is in grams (only if explicitly marked)
+                if "(g)" in key_lower or "grams" in value.lower():
                     num = clean_number(value)
                     if num:
                         try:
@@ -393,6 +396,25 @@ def scrape_product(url: str, verbose: bool = False) -> dict:
                         except ValueError:
                             pass
         return get_spec("weight (kg)", "weight:", "weight_kg", exact=True)
+
+    def get_torque(torque_type: str):
+        """Get torque, converting N-cm to kg-cm if needed."""
+        # Look for torque with units
+        for spec_key, value in all_specs.items():
+            if torque_type in spec_key.lower():
+                # Check if it's in N-cm (Newton-cm)
+                if "(n-cm)" in spec_key.lower() or "n-cm" in value.lower() or "ncm" in value.lower():
+                    num = clean_number(value)
+                    if num:
+                        try:
+                            # Convert N-cm to kg-cm (divide by 9.81)
+                            return str(round(float(num) / 9.81, 2))
+                        except ValueError:
+                            pass
+                # Check if it's in kg-cm or just return as-is
+                return clean_number(value)
+        # Fallback
+        return get_spec(torque_type)
 
     result = {
         "Product Name": product_name,
@@ -403,8 +425,8 @@ def scrape_product(url: str, verbose: bool = False) -> dict:
         "Power (W)": get_spec("operating power", "rated power", "power"),
         "Rated Current (A)": get_spec("rated current (a)", "rated current", "rate current"),
         "No Load Current (A)": get_no_load_current(),
-        "Rated Torque (kg-cm)": get_spec("rated torque", "rate torque"),
-        "Stall Torque (kg-cm)": get_spec("stall torque"),
+        "Rated Torque (kg-cm)": get_torque("rated torque"),
+        "Stall Torque (kg-cm)": get_torque("stall torque"),
         "RPM": get_spec("rated speed (rpm)", "rated speed", "speed (rpm)", "rpm"),
         "Efficiency (%)": get_efficiency(),
         "Weight (kg)": get_weight(),
